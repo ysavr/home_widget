@@ -3,4 +3,5 @@ class Constant {
   String iOSWidgetName = "MyHomeWidget";
   String androidWidgetName = "MyHomeWidget";
   String dataKey = "text_from_flutter_app";
+  String countKey = "count_key";
 }
