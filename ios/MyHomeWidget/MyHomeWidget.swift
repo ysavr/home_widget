@@ -12,11 +12,11 @@ struct Provider: TimelineProvider {
     
     private func getDatafromFlutter() -> SimpleEntry {
         let userDefault = UserDefaults(suiteName: "group.com.ex.homewidgetdemo")
-        let textFromFlutter = userDefault?.string(forKey: "text_from_flutter_app") ?? "-"
-        return SimpleEntry(date: Date(), text: textFromFlutter)
+        let count = userDefault?.integer(forKey: "count_key") ?? 0
+        return SimpleEntry(date: Date(), count: count)
     }
     func placeholder(in context: Context) -> SimpleEntry {
-        SimpleEntry(date: Date(), text: "-")
+        SimpleEntry(date: Date(), count: 0)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (SimpleEntry) -> ()) {
@@ -30,22 +30,62 @@ struct Provider: TimelineProvider {
         completion(timeline)
     }
 
-//    func relevances() async -> WidgetRelevances<Void> {
-//        // Generate a list containing the contexts this widget is relevant in.
-//    }
 }
 
 struct SimpleEntry: TimelineEntry {
     let date: Date
-    let text: String
+    let count: Int
 }
 
 struct MyHomeWidgetEntryView : View {
     var entry: Provider.Entry
-
-    var body: some View {
-        Text(entry.text)
-    }
+    @Environment(\.widgetFamily) var family
+      
+      var body: some View {
+        if family == .accessoryCircular {
+          ZStack {
+            Circle()
+              .fill(Color.blue.opacity(0.2))
+            Text(entry.count.description)
+              .font(.system(size: 24, weight: .bold))
+          }
+        } else {
+          VStack {
+            Text("You have pushed the button this many times:")
+              .font(.caption2)
+              .frame(maxWidth: .infinity, alignment: .center)
+            Spacer()
+            Text(entry.count.description)
+              .font(.title)
+              .frame(maxWidth: .infinity, alignment: .center)
+            Spacer()
+            HStack {
+              // This button is for clearing
+              Button(intent: BackgroundIntent(method: "clear")) {
+                Image(systemName: "xmark")
+                  .font(.system(size: 16))
+                  .foregroundColor(.red)
+                  .frame(width: 24, height: 24)
+              }
+              .buttonStyle(.plain)
+              .frame(alignment: .leading)
+              
+              Spacer()
+              
+              // This button is for incrementing
+              Button(intent: BackgroundIntent(method: "increment")) {
+                Image(systemName: "plus")
+                  .font(.system(size: 16))
+                  .foregroundColor(.white)
+              }
+              .frame(width: 24, height: 24)
+              .background(.blue)
+              .cornerRadius(12)
+              .frame(alignment: .trailing)
+            }
+          }
+        }
+      }
 }
 
 struct MyHomeWidget: Widget {
@@ -70,6 +110,6 @@ struct MyHomeWidget: Widget {
 #Preview(as: .systemSmall) {
     MyHomeWidget()
 } timeline: {
-    SimpleEntry(date: .now, text: "halo")
-    SimpleEntry(date: .now, text: "halo")
+    SimpleEntry(date: .now, count: 0)
+    SimpleEntry(date: .now, count: 0)
 }
