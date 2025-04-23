@@ -1,61 +1,36 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:homewidgetdemo/constant.dart';
 
+import 'bloc/counter_bloc.dart';
 import 'dash_with_sign.dart';
 
 Future<void> mainInit() async {
   WidgetsFlutterBinding.ensureInitialized();
   await HomeWidget.setAppGroupId(Constant().appGroupId);
   await HomeWidget.registerInteractivityCallback(interactiveCallback);
-  runApp(const MyApp());
+  runApp(
+    MultiBlocProvider(
+      providers: [BlocProvider(create: (_) => CounterBloc())],
+      child: const MyApp(),
+    ),
+  );
 }
 
 @pragma('vm:entry-point')
 Future<void> interactiveCallback(Uri? uri) async {
-  // Set AppGroup Id. This is needed for iOS Apps to talk to their WidgetExtensions
-  await HomeWidget.setAppGroupId(Constant().appGroupId);
-
-  // We check the host of the uri to determine which action should be triggered.
   if (uri?.host == 'increment') {
-    await _increment();
+    final value = await HomeWidget.getWidgetData<int>('count_key', defaultValue: 0);
+    final newValue = (value ?? 0) + 1;
+    await HomeWidget.saveWidgetData('count_key', newValue);
   } else if (uri?.host == 'clear') {
-    await _clear();
+    await HomeWidget.saveWidgetData('count_key', 0);
   }
-}
-
-Future<int> get _value async {
-  final value = await HomeWidget.getWidgetData<int>(Constant().countKey, defaultValue: 0);
-  return value!;
-}
-
-Future<int> _increment() async {
-  final oldValue = await _value;
-  final newValue = oldValue + 1;
-  await _sendAndUpdate(newValue);
-  return newValue;
-}
-
-Future<void> _clear() async {
-  await _sendAndUpdate(null);
-}
-
-Future<void> _sendAndUpdate([int? value]) async {
-  await HomeWidget.saveWidgetData(Constant().countKey, value);
-  await HomeWidget.renderFlutterWidget(
-    DashWithSign(count: value ?? 0),
-    key: 'dash_counter',
-    logicalSize: const Size(100, 100),
+  await HomeWidget.updateWidget(
+    iOSName: 'MyHomeWidget',
+    androidName: 'MyHomeWidget',
   );
-  try {
-    await HomeWidget.updateWidget(
-      iOSName: Constant().iOSWidgetName,
-      androidName: Constant().androidWidgetName,
-    );
-  } catch(e, s) {
-    print("error $e");
-    print("stack $s");
-  }
 }
 
 class MyApp extends StatelessWidget {
@@ -84,24 +59,11 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
-
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-  }
-
-  Future<void> _incrementCounter() async {
-    await _increment();
-    setState(() {});
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.resumed) {
-      setState(() {});
-    }
+    _syncFromWidget();
   }
 
   @override
@@ -110,56 +72,63 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  Future<void> _requestToPinWidget() async {
-    final isRequestPinSupported =
-    await HomeWidget.isRequestPinWidgetSupported();
-    if (isRequestPinSupported == true) {
-      await HomeWidget.requestPinWidget(
-        androidName: 'CounterGlanceWidgetReceiver',
-      );
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _syncFromWidget();
     }
   }
 
-  Future<void> _checkInstalledWidgets() async {
-    final installedWidgets = await HomeWidget.getInstalledWidgets();
-    debugPrint(installedWidgets.toString());
+  Future<void> _syncFromWidget() async {
+    final bloc = context.read<CounterBloc>();
+    final sharedCount = await HomeWidget.getWidgetData<int>('count_key', defaultValue: 0);
+    final currentBlocState = bloc.state;
+
+    if (sharedCount != null && sharedCount != currentBlocState) {
+      bloc.add(SyncCounter(sharedCount));
+    }
+  }
+
+  Future<void> _syncToWidget(int value) async {
+    await HomeWidget.saveWidgetData('count_key', value);
+    await HomeWidget.updateWidget(
+      iOSName: 'MyHomeWidget',
+      androidName: 'MyHomeWidget',
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(widget.title)),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
+      body: BlocBuilder<CounterBloc, int>(
+        builder: (context, count) {
+          _syncToWidget(count);
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                const Text('You have pushed the button this many times:'),
+                Text(
+                  "$count",
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+                DashWithSign(count: count),
+                TextButton(
+                  onPressed: () async {
+                    context.read<CounterBloc>().add(ClearCounter());
+                  },
+                  child: const Text('Clear'),
+                ),
+              ],
             ),
-            FutureBuilder<int>(
-              future: _value,
-              builder: (_, snapshot) => Column(
-                children: [
-                  Text(
-                    (snapshot.data ?? 0).toString(),
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  DashWithSign(count: snapshot.data ?? 0),
-                ],
-              ),
-            ),
-            TextButton(
-              onPressed: () async {
-                await _clear();
-                setState(() {});
-              },
-              child: const Text('Clear'),
-            ),
-          ],
-        ),
+          );
+        },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
+        onPressed: () {
+          context.read<CounterBloc>().add(IncrementCounter());
+        },
         tooltip: 'Increment',
         child: const Icon(Icons.add),
       ),
