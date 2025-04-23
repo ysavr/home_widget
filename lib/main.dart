@@ -4,7 +4,7 @@ import 'package:homewidgetdemo/constant.dart';
 
 import 'dash_with_sign.dart';
 
-Future<void> main() async {
+Future<void> mainInit() async {
   WidgetsFlutterBinding.ensureInitialized();
   await HomeWidget.setAppGroupId(Constant().appGroupId);
   await HomeWidget.registerInteractivityCallback(interactiveCallback);

@@ -37,6 +37,18 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+    flavorDimensions += "env"
+    productFlavors {
+        create("develop") {
+            dimension = "env"
+            versionNameSuffix = "-dev"
+            applicationIdSuffix = ".dev"
+        }
+        create("production") {
+            dimension = "env"
+        }
+    }
+
     buildFeatures {
         viewBinding = true
     }
